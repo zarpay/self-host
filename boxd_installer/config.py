@@ -341,6 +341,9 @@ def _cloud_name(doc: dict) -> str:
 def load(path: str) -> Config:
     with open(path, "rb") as fh:
         doc = tomllib.load(fh)
+    # An existing VPC's CIDRs come from AWS, before anything checks them.
+    if isinstance(doc.get("aws"), dict) and "vpc_id" in doc["aws"]:
+        clouds.CLOUDS["aws"].existing_network(doc["aws"])
     _validate(doc)
     return Config(doc, os.path.dirname(os.path.abspath(path)))
 
@@ -362,7 +365,7 @@ def _validate(doc: dict) -> None:
 
     routed = doc.get("network", {}).get("mode") == "routed"
     for tbl, keys in (("cluster", ("name", "zone", "assets_version")),
-                      (cloud, mod.REQUIRED),
+                      (cloud, mod.required(doc[cloud]) if cloud == "aws" else mod.REQUIRED),
                       ("network", ("vni_range_start", "vni_range_end")
                        + (("pool",) if routed else ("bridge_subnet_base",)))):
         missing = [k for k in keys if k not in doc.get(tbl, {})]

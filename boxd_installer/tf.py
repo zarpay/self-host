@@ -110,6 +110,22 @@ def state_data_volumes(raw_state: dict) -> set[str]:
             and r.get("mode") == "managed"
             for inst in r.get("instances", []) if isinstance(inst.get("index_key"), str)}
 
+def network_mode(cfg) -> str | None:
+    """Which VPC the cluster in the terraform state runs in. Needs `init`."""
+    res = _tf(cfg, "state", "pull", capture=True, quiet=True)
+    return state_network(json.loads(res.stdout or "{}"))
+
+def state_network(raw_state: dict) -> str | None:
+    """"created" (aws_vpc.vpc, the VPC terraform made), "existing"
+    (data.aws_vpc.existing, [aws] vpc_id) or None (no VPC in the state yet)."""
+    have = {(r.get("mode"), r.get("type"), r.get("name"))
+            for r in raw_state.get("resources", []) if r.get("instances")}
+    if ("managed", "aws_vpc", "vpc") in have:
+        return "created"
+    if ("data", "aws_vpc", "existing") in have:
+        return "existing"
+    return None
+
 def init(cfg) -> None:
     _tf(cfg, "init", "-input=false", *clouds.get(cfg).backend_args(cfg))
 
