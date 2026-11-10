@@ -413,7 +413,8 @@ leader. That's expected; the restart fixes it, and the next line says every
 node registered (or `apply` fails, naming the ones that didn't).
 
 **What `apply` creates on AWS:**
-- the VPC, both subnets, an internet gateway and a NAT gateway;
+- the VPC, both subnets, an internet gateway and a NAT gateway (none of them
+  [in an existing VPC](#into-an-existing-vpc));
 - security groups: internal allow-all; proxy ports 80/443/9443/10000-30000/40000-60000
   from `ingress_cidrs` (default anywhere); dns 53 from anywhere; no inbound SSH anywhere;
 - an SSM instance profile;
@@ -552,6 +553,62 @@ Objects can't be read or deleted from your laptop any more. To empty a
 bucket before [Tearing down](REFERENCE.md#tearing-down), do it from a node
 ([SSH to nodes](REFERENCE.md#ssh-to-nodes), then `aws s3 rm --recursive`), or set
 `bucket_access = "anywhere"` and `apply` first.
+
+### Into an existing VPC
+
+To put the cluster in a VPC you already run, name it and its subnets instead
+of the CIDRs:
+
+```toml
+[aws]
+vpc_id            = "vpc-0123456789abcdef0"
+private_subnet_id = "subnet-0123456789abcdef0"  # every node with private ingress
+# public_subnet_id = "subnet-…"                 # public ingress: proxy and dns nodes
+```
+
+`apply` then creates no VPC, subnet, internet gateway, NAT gateway, route
+table or S3 gateway endpoint, and changes none of yours. What it still
+creates: the security groups (in your VPC), the instances, their disks and
+Elastic IPs, the SSM instance profile and the buckets.
+
+- **CIDRs come from AWS.** `validate` and `apply` read the VPC's and the
+  subnets' CIDRs (`aws ec2 describe-*`, so they need your AWS login) and use
+  them where they'd use `vpc_cidr` and the subnet CIDRs: `ingress_cidrs`
+  defaults to the VPC's CIDR in private mode, and boxd treats it as the
+  cluster's private network. Don't
+  set `vpc_cidr`, `public_subnet_cidr` or `private_subnet_cidr` as well:
+  `validate` refuses the mix. The VPC must be inside `10.0.0.0/8`, as
+  `vpc_cidr` must, and its resolver is its CIDR's base address + 2, for
+  `dns_verify_resolver` (`validate` prints both).
+- **Subnets.** Private ingress needs only `private_subnet_id`; public ingress
+  needs `public_subnet_id` too. Both must be in the VPC and in
+  `availability_zone`. The private subnet must already reach the internet
+  (a NAT gateway route), and the public one through an internet gateway.
+  Every `internal_ip` must be a free address in its node's subnet:
+  `validate` checks the subnet, not whether something else holds the
+  address, so pick ones no ENI uses (`aws ec2 describe-network-interfaces
+  --filters Name=subnet-id,Values=…`).
+- **S3 endpoints.** `apply` adds no gateway endpoint to your route tables, so
+  with [`bucket_access = "vpc"`](#buckets-only-inside-the-vpc) name the
+  VPC's own S3 gateway endpoint, which must be on the route table of every
+  subnet the cluster uses (`validate` checks):
+
+  ```toml
+  s3_endpoint_id = "vpce-0123456789abcdef0"
+  ```
+
+  With [`storage_bucket_type = "express"`](REFERENCE.md#s3-express-storage-bucket)
+  workers reach the bucket through the NAT gateway unless you add an
+  `s3express` gateway endpoint yourself.
+- **Only the cluster's nodes reach each other.** In a VPC `apply` makes, the
+  internal security group admits the whole VPC; in an existing one it admits
+  only its own members, so the VPC's other workloads reach the cluster only
+  on the proxy ports from `ingress_cidrs` (and dns 53).
+
+A cluster can't move between a VPC `apply` made and an existing one: that
+would destroy the network its nodes are in, or replace every node, so
+`apply` refuses when `vpc_id` doesn't match how the cluster was installed.
+Install the other kind as a new cluster.
 
 ---
 
