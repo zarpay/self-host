@@ -101,6 +101,9 @@ def _apply(cfg, args) -> int:
         tf.init(cfg)
         # A worker that exists keeps its type: the license never resizes one.
         existing = tf.instance_types(cfg)
+        # A cluster that exists stays in the kind of VPC it has.
+        if cfg.cloud_name == "aws":
+            clouds.CLOUDS["aws"].check_network_switch(cfg, tf.network_mode(cfg))
         # A worker that exists keeps its kind of data disk (EBS or instance store).
         if cfg.cloud_name == "aws" and any(n.name in existing for n in cfg.nodes_with("worker")):
             clouds.CLOUDS["aws"].check_data_disk_switch(cfg, set(existing), tf.data_volumes(cfg))

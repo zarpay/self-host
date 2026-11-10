@@ -184,7 +184,8 @@ class ApplyPassesTheSetting(Isolated):
              mock.patch.multiple(main.tf, init=mock.DEFAULT, plan=mock.DEFAULT,
                                  apply_plan=mock.DEFAULT, read_outputs=mock.DEFAULT,
                                  write_tfvars=mock.DEFAULT,
-                                 instance_types=mock.Mock(return_value={})), \
+                                 instance_types=mock.Mock(return_value={}),
+                                 network_mode=mock.Mock(return_value=None)), \
              mock.patch.multiple(main.ansible, set_keys_dir=mock.DEFAULT,
                                  set_tf_outputs=mock.DEFAULT, preflight=mock.DEFAULT,
                                  converge=mock.DEFAULT, wait_for_leader=mock.DEFAULT, sync_config=mock.DEFAULT, deployed_network_modes=mock.Mock(return_value={}), machine_count=mock.Mock(return_value=0),
@@ -217,7 +218,8 @@ class ApplyPassesTheSetting(Isolated):
              mock.patch.multiple(main.tf, init=mock.DEFAULT, plan=mock.DEFAULT,
                                  apply_plan=mock.DEFAULT, read_outputs=mock.DEFAULT,
                                  write_tfvars=mock.DEFAULT,
-                                 instance_types=mock.Mock(return_value={})), \
+                                 instance_types=mock.Mock(return_value={}),
+                                 network_mode=mock.Mock(return_value=None)), \
              mock.patch.multiple(main.ansible, set_keys_dir=mock.DEFAULT,
                                  set_tf_outputs=mock.DEFAULT, preflight=mock.DEFAULT,
                                  converge=calls.converge, wait_for_leader=mock.DEFAULT, sync_config=mock.DEFAULT, deployed_network_modes=mock.Mock(return_value={}), machine_count=mock.Mock(return_value=0),
